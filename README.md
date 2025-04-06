@@ -2,7 +2,7 @@
 A treehouse build plan made in R
 
 ## The Site
-![Treehouse Plan](figures/treehouse-plan.png)
+![Treehouse Plan](figures/the-site.png)
 
 ## Notes
 This project uses [`renv`](https://rstudio.github.io/renv/) for environment management.
