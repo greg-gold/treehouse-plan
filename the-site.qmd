@@ -1,0 +1,232 @@
+---
+title: "The Site"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(ggforce)
+```
+
+## The Site
+
+In the corner of my backyard...
+
+three trees in a triangle formation with a fence to the side
+
+A \| Fence
+
+B C \|
+
+\<- North
+
+### Measurements
+
+**Tree to Tree (bark to bark distance)**
+
+```{r}
+bark_AB <- 107  # A to B
+bark_AC <- 105  # A to C
+bark_BC <- 75   # B to C
+```
+
+**Tree to Fence (bark to fence distance)**
+
+```{r}
+bark_AF <- 29
+bark_CF <- 19
+```
+
+**Tree Circumference**
+
+```{r}
+circ_A <- 66.5
+circ_B <- 44.5
+circ_C <- 36
+```
+
+### Geometry
+
+**Radius**
+
+r = C / (2\*pi)
+
+```{r}
+r_A <- circ_A / (2 * pi)
+r_B <- circ_B / (2 * pi)
+r_C <- circ_C / (2 * pi)
+```
+
+**Center-to-center distances**
+
+These will be easier to plot lines between than bark-to-bark
+
+```{r}
+d_AB <- bark_AB + (r_A + r_B)
+d_AC <- bark_AC + (r_A + r_C)
+d_BC <- bark_BC + (r_B + r_C)
+
+d_AF <- bark_AF + r_A
+d_CF <- bark_CF + r_C
+```
+
+**Relative Coordinates**
+
+Trees
+
+A
+
+*(d_AB) (d_AC)*
+
+B *(d_BC)* C
+
+First few are simple...
+
+```{r}
+x_B <- 0
+y_B <- 0
+
+x_C <- d_BC
+y_C <- 0
+```
+
+We know A is `d_AB` (\~ 125in) from B
+
+and A is `d_AC` (\~ 121in) from C
+
+A is somewhere above them, in a way that satisfies the above?
+
+Triangle Geometry (thanks ChatGPT!) - distance formula, law of cosines, Pythagorean relationship.
+
+```{r}
+x_A <- (d_AB^2 - d_AC^2 + d_BC^2) / (2 * d_BC)
+y_A <- sqrt(d_AB^2 - x_A^2)
+```
+
+df for the circles
+
+```{r}
+circles_df <- tibble(
+  tree = c("A", "B", "C"),
+  x    = c(x_A, x_B, x_C),
+  y    = c(y_A, y_B, y_C),
+  r    = c(r_A, r_B, r_C)
+)
+```
+
+df for the lines between trees
+
+bark_AB \<- 107 \# A to B bark_AC \<- 105 \# A to C bark_BC \<- 75 \# B to C
+
+```{r}
+tree_lines_df <- tibble(
+  from   = c("A", "A", "B"),
+  to     = c("B", "C", "C"),
+  x      = c(x_A, x_A, x_B),
+  y      = c(y_A, y_A, y_B),
+  xend   = c(x_B, x_C, x_C),
+  yend   = c(y_B, y_C, y_C),
+  # may swap this out later
+  # but I think I want to still show the bark to bark distances
+  # as that may be more practical for measuring?
+  label  = c(
+    paste0(round(bark_AB, 0), " in"),
+    paste0(round(bark_AC, 0), " in"),
+    paste0(round(bark_BC, 0), " in")
+  )
+) %>%
+  # for where to put the inches label
+  mutate(
+    mid_x = (x + xend) / 2,
+    mid_y = (y + yend) / 2
+  )
+```
+
+**Fence**
+
+Relative to the trees, the fence (a straight line) is `d_AF` from A and `d_CF` from C. I think I can just do this...
+
+```{r}
+x_fence_a <- x_A + d_AF
+y_fence_a <- y_A
+x_fence_c <- d_BC + d_CF
+y_fence_c <- 0
+```
+
+Calculate the slope and intercept for `geom_abline()` later
+
+```{r}
+fence_slope <- (y_fence_c - y_fence_a) / (x_fence_c - x_fence_a)
+fence_intercept <- y_fence_a - fence_slope * x_fence_a
+```
+
+df for the lines between the trees and the fence
+
+```{r}
+fence_lines_df <- tibble(
+  tree  = c("A", "C"),
+  x     = c(x_A, x_C),
+  y     = c(y_A, y_C),
+  xend  = c(x_fence_a, x_fence_c),
+  yend  = c(y_fence_a, y_fence_c),
+  # may swap this out later for center to center, as mentioned above
+  label  = c(
+    paste0(round(bark_AF, 0), " in"),
+    paste0(round(bark_CF, 0), " in")
+  )
+)
+```
+
+### Plot
+
+```{r}
+p <- ggplot() +
+  # Distance Lines & Labels
+  # purposely plotting first so they're hidden behind the tree circles
+  ## between Trees
+  geom_segment(data = tree_lines_df,
+               aes(x = x, y = y, xend = xend, yend = yend),
+               linetype = "dashed", color = "grey40", size = 0.75) +
+  geom_label(data = tree_lines_df,
+             aes(x = mid_x, y = mid_y, label = label),
+             color = "black", size = 3.5, label.size = 0, fontface = "bold",
+             fill = scales::alpha("white", .75)) +
+  ## between trees and fence
+  geom_segment(data = fence_lines_df,
+               aes(x = x, y = y, xend = xend, yend = yend),
+               linetype = "dashed", color = "grey40", size = 0.75) +
+  geom_label(data = fence_lines_df,
+             aes(x = (x + xend)/2, y = (y + yend)/2, label = label),
+             color = "black", size = 3.5, label.size = 0, fontface = "bold",
+             fill = scales::alpha("white", .75), hjust = .25) +
+  # Fence Line
+  geom_abline(
+    slope = fence_slope,
+    intercept = fence_intercept,
+    color = "sienna4", size = 1
+  ) +
+  annotate("text", x = 95, y = 95, label = "Fence",
+           color = "sienna4", size = 4, hjust = 0, fontface = "bold") +
+  # Tree circles
+  geom_circle(data = circles_df,
+              aes(x0 = x, y0 = y, r = r),
+              color = "black", fill = "olivedrab4", size = 0.5) +
+  # Tree labels
+  geom_text(data = circles_df,
+            aes(x = x, y = y, label = tree),
+            size = 5, fontface = "bold") +
+  coord_fixed(xlim = c(-10, 135), ylim = c(-10, 135)) +
+  labs(
+    title = "Treehouse Build Site",
+    x = "Inches", y = "Inches"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.title.position = "plot"
+  )
+
+ggsave("figures/the-site.png", p, width = 8, height = 8, dpi = 400)
+p
+```
