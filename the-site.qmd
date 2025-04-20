@@ -109,6 +109,7 @@ df for the circles
 ```{r}
 circles_df <- tibble(
   tree = c("A", "B", "C"),
+  circ = c(circ_A, circ_B, circ_C),
   x    = c(x_A, x_B, x_C),
   y    = c(y_A, y_B, y_C),
   r    = c(r_A, r_B, r_C)
@@ -182,9 +183,6 @@ fence_lines_df <- tibble(
 
 ```{r}
 p <- ggplot() +
-  # Distance Lines & Labels
-  # purposely plotting first so they're hidden behind the tree circles
-  ## between Trees
   geom_segment(data = tree_lines_df,
                aes(x = x, y = y, xend = xend, yend = yend),
                linetype = "dashed", color = "grey40", size = 0.75) +
@@ -211,11 +209,16 @@ p <- ggplot() +
   # Tree circles
   geom_circle(data = circles_df,
               aes(x0 = x, y0 = y, r = r),
-              color = "black", fill = "olivedrab4", size = 0.5) +
+              color = "black", fill = "olivedrab4", size = 0) +
   # Tree labels
   geom_text(data = circles_df,
             aes(x = x, y = y, label = tree),
             size = 5, fontface = "bold") +
+  geom_text(data = circles_df,
+            aes(x = x, y = y, label = paste0("C: ", round(circ), " in"
+                                             #, "\n", "r:", round(r)
+                                             )),
+            size = 2.8, vjust = 3) +
   coord_fixed(xlim = c(-10, 135), ylim = c(-10, 135)) +
   labs(
     title = "Treehouse Build Site",
@@ -226,7 +229,22 @@ p <- ggplot() +
     plot.title = element_text(face = "bold"),
     plot.title.position = "plot"
   )
+  #maybe add later...
+  #ggspatial::annotation_north_arrow(location = "tr", which_north = "true") +
+  #ggspatial::annotation_scale(location = "bl")
 
-ggsave("figures/the-site.png", p, width = 8, height = 8, dpi = 400)
+ggsave("figures/the-site.png", p, width = 9, height = 9, dpi = 400)
 p
 ```
+
+saving all the data objects out to load in next steps...
+
+not ideal, later I should convert to a reproducible pipeline
+
+```{r}
+save(
+  list = ls(), 
+  file = here::here("data", "the-site-data.RData")
+)
+```
+
