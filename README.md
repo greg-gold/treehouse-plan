@@ -1,15 +1,22 @@
-# treehouse-plan (wip)
+# treehouse-plan (WIP)
+
 A treehouse build plan made in R
 
 ## The Site
-![Treehouse Plan](figures/the-site.png)
+
+[1-the-site.qmd](1-the-site.qmd) ![Treehouse Plan](figures/the-site.png)
+
+## The Base (so far...)
+
+[2-the-base.qmd](2-the-base.qmd) ![The Base](figures/the-base.png)
 
 ## Notes
+
 This project uses [`renv`](https://rstudio.github.io/renv/) for environment management.
 
 To set up:
 
-```r
+``` r
 # Install renv if needed
 install.packages("renv")
 
