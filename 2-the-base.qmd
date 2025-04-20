@@ -1,0 +1,185 @@
+---
+title: "The Base"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(ggforce)
+```
+
+## Load Data from The Site
+
+Loading in data from "1-the-site.qmd"
+
+```{r}
+load(
+  file = here::here("data", "the-site-data.RData")
+)
+```
+
+![Treehouse Plan](figures/the-site.png)
+
+## Bolts and Beams
+
+We'll use lag bolts like [these](https://www.amazon.com/Treehouse-Brackets-Hardware-1-25-Bolt/dp/B089M9H6YD/ref=sr_1_17?crid=10X23ZB35L2Y8&dib=eyJ2IjoiMSJ9.BvPnJGoKk4D1iyhal83TGag0dv9NQefuWgwMAFJHy8GmxDXylj8klLeOJjWHQ4yOAgwWRHscot35DO-IMtErxiQYBeji2ugCykzbxxWrmq-kZotOppRL2C3MRgYII2qudX7xw_aOhHRveFeqTQzXCpIkQBvcBmI6pINm9IaTqZY8Ev7c7kZoVqlA5CRLgLYwocjvy2q1yWlvk7ZNcqvAUSLU5C5JPNzLSqqN-UmqY0cdwKxJrjPT3ptv-tFg4-iS69VFdKbS2Sg_wG9i5sfF86Zc55bx1WTZTfeLmMUTv00.kQ_VMuWwdwulN8UGZvAuphWpLnYCRAygW6br05GjLZM&dib_tag=se&keywords=treehouse+tab&qid=1744057230&sprefix=treehouse+tab%2Caps%2C136&sr=8-17){.uri}
+
+-   1.25" Diameter Lag Bolt 
+
+-   15" Length
+
+-   5'' of threads
+
+Two on either side of tree A (the static connection) and one on the outside of trees B and C (the dynamic connection to allow the tree house to sway and growth), connection details TBD.
+
+And then one beam between A-B, one between A-C
+
+We want more overhang out from trees B and C for a balcony
+
+### Dev notes:
+
+-   I'm realizing this is tricky, because each tree is a diff size
+
+-   You have to get the angle just right for the lag bolts coming out of the tree
+
+-   so the beam sits flat on the bolts perfectly perpendicular bolt to beam
+
+-   It's hard enough to calc it here but is this even practical for the build?
+
+I don't love this function, it's just a poc...I vibe coded it with chatGPT and need to dig in to better understand each step and rewrite it.
+
+```{r}
+make_beam <- function(
+    df,                 # circles_df
+    tree1,              # e.g. "A"
+    tree2,              # e.g. "C"
+    bolt_length    = 15,
+    embed_depth_in = 5,
+    embed_depth_out= 5,
+    beam_width     = 4,
+    overhang_start = 24,
+   overhang_end   = 36
+   ) {
+  
+  # Grab tree centers and radii from the df
+  t1 <- df %>% filter(tree == tree1)
+  t2 <- df %>% filter(tree == tree2)
+  pos1 <- c(t1$x, t1$y)
+  r1 <- t1$r
+  pos2 <- c(t2$x, t2$y)
+  r2 <- t2$r
+
+  # Calculate the beam's direction vector
+  # and its length
+  axis_vec    <- pos2 - pos1
+  axis_len    <- sqrt(sum(axis_vec^2)) 
+  unit_axis   <- axis_vec / axis_len
+  normal_unit <- c(-unit_axis[2], unit_axis[1])
+
+  # Ensure normal points away from triangle centroid
+  centroid    <- colMeans(df[, c("x","y")])
+  dir_sign    <- sum((pos1 - centroid) * normal_unit)
+  if (dir_sign < 0) normal_unit <- -normal_unit
+
+  # Compute bolt entry & exit points
+  effective_out <- bolt_length - embed_depth_in
+
+  bolt_entry1  <- pos1 + (r1 - embed_depth_in) * normal_unit
+  bolt_exit1   <- pos1 + (r1 + effective_out)  * normal_unit
+  bolt_entry2  <- pos2 + (r2 - embed_depth_in) * normal_unit
+  bolt_exit2   <- pos2 + (r2 + effective_out)  * normal_unit
+
+  bolt_lines_df <- tibble(
+    x    = c(bolt_entry1[1],  bolt_entry2[1]),
+    y    = c(bolt_entry1[2],  bolt_entry2[2]),
+    xend = c(bolt_exit1[1],   bolt_exit2[1]),
+    yend = c(bolt_exit1[2],   bolt_exit2[2])
+  )
+
+  # Build beam rectangle
+  mid1      <- pos1 + (r1 + embed_depth_out) * normal_unit
+  mid2      <- pos2 + (r2 + embed_depth_out) * normal_unit
+
+  beam_vec  <- mid2 - mid1
+  beam_unit <- beam_vec / sqrt(sum(beam_vec^2))
+  perp_unit <- c(-beam_unit[2], beam_unit[1])
+
+  # apply overhangs
+  start_pt  <- mid1 - overhang_start * beam_unit
+  end_pt    <- mid2 + overhang_end   * beam_unit
+  half_w    <- (beam_width / 2) * perp_unit
+
+  corners <- rbind(
+    start_pt + half_w,
+    end_pt   + half_w,
+    end_pt   - half_w,
+    start_pt - half_w
+  )
+  rect_df <- as_tibble(corners) %>% setNames(c("x","y"))
+
+  # Return two tibbles: bolt lines & beam polygon
+  list(
+    bolt_lines_df = bolt_lines_df,
+    rect_df       = rect_df
+  )
+}
+```
+
+```{r}
+beam_AC <- make_beam(circles_df, "A", "C")
+beam_AB <- make_beam(circles_df, "A", "B")
+```
+
+```{r}
+p <- ggplot() +
+  geom_abline(
+    slope = fence_slope,
+    intercept = fence_intercept,
+    color = "tan4", size = 1
+  ) +
+  annotate("text", x = 95, y = 95, label = "Fence",
+           color = "tan4", size = 4, hjust = 0, fontface = "bold") +
+  # Tree circles
+  geom_circle(data = circles_df,
+              aes(x0 = x, y0 = y, r = r),
+              color = "black", fill = "olivedrab4", size = 0) +
+  # Tree labels
+  geom_text(data = circles_df,
+            aes(x = x, y = y, label = tree),
+            size = 5, fontface = "bold") +
+  coord_fixed(xlim = c(-30, 140), ylim = c(-30, 140)) +
+  labs(
+    title = "Treehouse Base",
+    x = "Inches", y = "Inches"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.title.position = "plot"
+  ) +
+
+  geom_segment(data    = beam_AC$bolt_lines_df,
+               aes(x=x, y=y, xend=xend, yend=yend),
+               size    = 1) +
+  geom_polygon(data  = beam_AC$rect_df,
+               aes(x=x, y=y),
+               fill   = "tan3",
+               alpha  = 1) +
+  geom_segment(data    = beam_AB$bolt_lines_df,
+               aes(x=x, y=y, xend=xend, yend=yend),
+               size    = 1) +
+  geom_polygon(data  = beam_AB$rect_df,
+               aes(x=x, y=y),
+               fill   = "tan3",
+               alpha  = 1)
+
+ggsave("figures/the-base.png", p, width = 9, height = 9, dpi = 400)
+p
+```
+
+## Joists
+
+Next up, add the joists...
+
+We're thinking maybe we can build them out perpendicular from the A-\>C beam so you only need to cut the angle where it touches the A-\>B beam.
